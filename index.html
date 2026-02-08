@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Freeze-Dry Tray Calculator</title>
+  <meta name="theme-color" content="#111827" />
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --text:#e5e7eb; --muted:#a5b4fc; --line:#243055; --btn:#2563eb; --btn2:#334155; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+    .wrap{ max-width:780px; margin:0 auto; padding:16px; }
+    header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+    h1{ font-size:20px; margin:0; }
+    .pill{ font-size:12px; color:var(--muted); border:1px solid var(--line); padding:6px 10px; border-radius:999px; }
+    .grid{ display:grid; grid-template-columns:1fr; gap:12px; }
+    .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; }
+    .card h2{ font-size:15px; margin:0 0 10px; color:#c7d2fe; }
+    .row{ display:grid; grid-template-columns: 96px 1fr 1fr; gap:10px; align-items:center; margin-bottom:10px; }
+    .row label{ font-size:13px; color:#cbd5e1; }
+    .field{ display:flex; flex-direction:column; gap:6px; }
+    input{ width:100%; box-sizing:border-box; padding:10px 10px; border-radius:10px; border:1px solid var(--line); background:#0b122a; color:var(--text); font-size:16px; }
+    input::placeholder{ color:#64748b; }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+    button{ border:0; border-radius:10px; padding:10px 12px; font-weight:600; color:white; background:var(--btn); cursor:pointer; }
+    button.secondary{ background:var(--btn2); }
+    .stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .stat{ border:1px solid var(--line); border-radius:12px; padding:10px; background:#0b122a; }
+    .k{ font-size:12px; color:#94a3b8; margin-bottom:4px; }
+    .v{ font-size:18px; font-weight:700; }
+    .note{ font-size:12px; color:#93c5fd; margin-top:8px; line-height:1.35; }
+    .footer{ font-size:12px; color:#94a3b8; margin-top:12px; }
+    @media (max-width:520px){
+      .row{ grid-template-columns: 70px 1fr 1fr; }
+      .stats{ grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Freeze-Dry Tray Calculator</h1>
+      <div class="pill">5 trays • grams • offline-capable</div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Tray weights (grams)</h2>
+
+        <div id="trayRows"></div>
+
+        <div class="actions">
+          <button id="clearBtn" class="secondary" type="button">Clear</button>
+          <button id="copyBtn" class="secondary" type="button">Copy Tray 1 → All</button>
+        </div>
+        <div class="note">
+          Tip: If you always load trays the same, “Copy Tray 1 → All” saves time.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Batch totals</h2>
+        <div class="stats">
+          <div class="stat"><div class="k">Total start</div><div class="v" id="totalStart">0.00 g</div></div>
+          <div class="stat"><div class="k">Total end (dry)</div><div class="v" id="totalEnd">0.00 g</div></div>
+          <div class="stat"><div class="k">Water removed</div><div class="v" id="waterRemoved">0.00 g</div></div>
+          <div class="stat"><div class="k">Water removed %</div><div class="v" id="waterPct">0.00%</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Rehydration estimate</h2>
+        <div class="stats">
+          <div class="stat"><div class="k">Water to add back (approx.)</div><div class="v" id="waterAdd">0.00 g</div></div>
+          <div class="stat"><div class="k">Water to add (approx.)</div><div class="v" id="waterAddMl">0.00 mL</div></div>
+        </div>
+        <div class="note">
+          Simple estimate: water to add back ≈ (total start − total end). 1g water ≈ 1mL.
+          Then adjust based on texture/taste.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Portioning (dry)</h2>
+        <div class="field">
+          <label for="portionDry">Option A: Dry grams per portion → number of portions</label>
+          <input id="portionDry" inputmode="decimal" placeholder="e.g., 50" />
+        </div>
+        <div class="stats" style="margin-top:10px">
+          <div class="stat"><div class="k">Portions (by size)</div><div class="v" id="portionsBySize">0</div></div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="field">
+          <label for="portionCount">Option B: Number of portions → dry + water per portion</label>
+          <input id="portionCount" inputmode="decimal" placeholder="e.g., 10" />
+        </div>
+
+        <div class="stats" style="margin-top:10px">
+          <div class="stat"><div class="k">Dry per portion</div><div class="v" id="dryPerPortion">0.00 g</div></div>
+          <div class="stat"><div class="k">Water per portion</div><div class="v" id="waterPerPortion">0.00 g</div></div>
+        </div>
+      </div>
+
+      <div class="footer">
+        Saves inputs on your device (no account). Works offline after first load if installed as an app.
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const TRAYS = 5;
+
+  const fmt = (n, suffix="") => `${(isFinite(n) ? n : 0).toFixed(2)}${suffix}`;
+  const clamp0 = (n) => Math.max(0, isFinite(n) ? n : 0);
+
+  const state = {
+    trays: Array.from({length: TRAYS}, () => ({ start: 0, end: 0 })),
+    portionDry: 50,
+    portionCount: 10,
+  };
+
+  function parseNum(v){
+    if (!v) return 0;
+    const cleaned = (""+v).replace(",", ".").trim();
+    const n = Number(cleaned);
+    return isFinite(n) ? n : 0;
+  }
+
+  function save(){
+    localStorage.setItem("fd_tray_calc_v1", JSON.stringify(state));
+  }
+
+  function load(){
+    try{
+      const raw = localStorage.getItem("fd_tray_calc_v1");
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && obj.trays && obj.trays.length === TRAYS) {
+        Object.assign(state, obj);
+      }
+    }catch(e){}
+  }
+
+  function renderTrayRows(){
+    const host = document.getElementById("trayRows");
+    host.innerHTML = "";
+    for (let i=0;i<TRAYS;i++){
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `
+        <label>Tray ${i+1}</label>
+        <input id="s${i}" inputmode="decimal" placeholder="Start g" />
+        <input id="e${i}" inputmode="decimal" placeholder="End g" />
+      `;
+      host.appendChild(row);
+    }
+    for (let i=0;i<TRAYS;i++){
+      const s = document.getElementById(`s${i}`);
+      const e = document.getElementById(`e${i}`);
+      s.value = state.trays[i].start ? state.trays[i].start : "";
+      e.value = state.trays[i].end ? state.trays[i].end : "";
+      s.addEventListener("input", () => { state.trays[i].start = parseNum(s.value); save(); recalc(); });
+      e.addEventListener("input", () => { state.trays[i].end = parseNum(e.value); save(); recalc(); });
+    }
+  }
+
+  function recalc(){
+    const totalStart = state.trays.reduce((a,t)=>a+clamp0(t.start),0);
+    const totalEnd   = state.trays.reduce((a,t)=>a+clamp0(t.end),0);
+    const waterRemoved = clamp0(totalStart - totalEnd);
+    const waterPct = totalStart <= 0 ? 0 : (waterRemoved / totalStart) * 100;
+
+    document.getElementById("totalStart").textContent = `${fmt(totalStart)} g`;
+    document.getElementById("totalEnd").textContent = `${fmt(totalEnd)} g`;
+    document.getElementById("waterRemoved").textContent = `${fmt(waterRemoved)} g`;
+    document.getElementById("waterPct").textContent = `${fmt(waterPct)}%`;
+
+    document.getElementById("waterAdd").textContent = `${fmt(waterRemoved)} g`;
+    document.getElementById("waterAddMl").textContent = `${fmt(waterRemoved)} mL`;
+
+    const portionDry = clamp0(state.portionDry);
+    const portionCount = clamp0(state.portionCount);
+
+    const portionsBySize = portionDry <= 0 ? 0 : Math.floor(totalEnd / portionDry);
+    document.getElementById("portionsBySize").textContent = `${portionsBySize}`;
+
+    const dryPerPortion = portionCount <= 0 ? 0 : (totalEnd / portionCount);
+    const waterPerPortion = portionCount <= 0 ? 0 : (waterRemoved / portionCount);
+    document.getElementById("dryPerPortion").textContent = `${fmt(dryPerPortion)} g`;
+    document.getElementById("waterPerPortion").textContent = `${fmt(waterPerPortion)} g (~${fmt(waterPerPortion)} mL)`;
+  }
+
+  function wireControls(){
+    const pd = document.getElementById("portionDry");
+    const pc = document.getElementById("portionCount");
+
+    pd.value = state.portionDry ? state.portionDry : "";
+    pc.value = state.portionCount ? state.portionCount : "";
+
+    pd.addEventListener("input", () => { state.portionDry = parseNum(pd.value); save(); recalc(); });
+    pc.addEventListener("input", () => { state.portionCount = parseNum(pc.value); save(); recalc(); });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      state.trays.forEach(t => { t.start = 0; t.end = 0; });
+      renderTrayRows();
+      save();
+      recalc();
+    });
+
+    document.getElementById("copyBtn").addEventListener("click", () => {
+      const s0 = state.trays[0].start, e0 = state.trays[0].end;
+      for (let i=1;i<TRAYS;i++){ state.trays[i].start = s0; state.trays[i].end = e0; }
+      renderTrayRows();
+      save();
+      recalc();
+    });
+  }
+
+  load();
+  renderTrayRows();
+  wireControls();
+  recalc();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(()=>{});
+    });
+  }
+})();
+</script>
+</body>
+</html>
